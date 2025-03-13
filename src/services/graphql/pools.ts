@@ -1,6 +1,6 @@
 import type { AppContext } from '@/types'
-import { POOLS_CACHE, POOLS_CACHE_KEY, tayaswapSubpgrah } from './constants'
 import { GET_POOLS_QUERY } from './queries'
+import { POOLS_CACHE, POOLS_CACHE_KEY, tayaswapSubpgrah } from './constants'
 
 export interface IPairTokenData {
   decimals: string

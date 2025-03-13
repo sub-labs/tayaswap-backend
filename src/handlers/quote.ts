@@ -2,7 +2,7 @@ import { error } from '@/responses'
 import { type IPairTokenData, getPools } from '@/services'
 import {
   type AppContext,
-  ERROR_ADDRESS,
+  ERROR_ADDRESS_TOKEN,
   ERROR_MULTIPLE_AMOUNT,
   ERROR_NON_VALID_TOKEN,
   ERROR_NO_AMOUNT,
@@ -78,11 +78,11 @@ export class GetQuote extends OpenAPIRoute {
     }
 
     if (!isAddress(fromToken)) {
-      return error(context, ERROR_ADDRESS('fromToken'))
+      return error(context, ERROR_ADDRESS_TOKEN('fromToken'))
     }
 
     if (!isAddress(toToken)) {
-      return error(context, ERROR_ADDRESS('toToken'))
+      return error(context, ERROR_ADDRESS_TOKEN('toToken'))
     }
 
     const pools = await getPools(context)
