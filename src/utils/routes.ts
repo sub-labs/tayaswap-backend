@@ -1,0 +1,143 @@
+import type { IPairData } from '@/services'
+import { TradeDirection } from '@/types'
+import { getAmountIn, getAmountOut } from './uniswapv2'
+
+function existsPool(tokenA: string, tokenB: string, pools: IPairData[]): boolean {
+  for (let i = 0; i < pools.length; i++) {
+    const p = pools[i]
+    if (
+      (p.token0.id.toLowerCase() === tokenA.toLowerCase() && p.token1.id.toLowerCase() === tokenB.toLowerCase()) ||
+      (p.token0.id.toLowerCase() === tokenB.toLowerCase() && p.token1.id.toLowerCase() === tokenA.toLowerCase())
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function getPool(tokenA: string, tokenB: string, pools: IPairData[]): IPairData | undefined {
+  return pools.find(
+    (p) =>
+      (p.token0.id.toLowerCase() === tokenA.toLowerCase() && p.token1.id.toLowerCase() === tokenB.toLowerCase()) ||
+      (p.token0.id.toLowerCase() === tokenB.toLowerCase() && p.token1.id.toLowerCase() === tokenA.toLowerCase())
+  )
+}
+
+function getReservesForSwap(tokenA: string, pool: IPairData): { reserveIn: bigint; reserveOut: bigint } {
+  if (tokenA.toLowerCase() === pool.token0.id.toLowerCase()) {
+    return { reserveIn: BigInt(pool.reserve0), reserveOut: BigInt(pool.reserve1) }
+  }
+
+  return { reserveIn: BigInt(pool.reserve1), reserveOut: BigInt(pool.reserve0) }
+}
+
+async function findBestRoute(
+  amount: bigint,
+  tokenIn: string,
+  tokenOut: string,
+  pools: IPairData[],
+  direction: TradeDirection
+): Promise<{ route: string[]; output: bigint; priceImpact: number }> {
+  if (amount === 0n) return { route: [], output: 0n, priceImpact: 0 }
+
+  const routes: string[][] = []
+
+  if (existsPool(tokenIn, tokenOut, pools)) {
+    routes.push([tokenIn, tokenOut])
+  }
+
+  const candidateSet = new Set<string>()
+  for (let i = 0; i < pools.length; i++) {
+    candidateSet.add(pools[i].token0.id)
+    candidateSet.add(pools[i].token1.id)
+  }
+  candidateSet.delete(tokenIn)
+  candidateSet.delete(tokenOut)
+
+  const candidates = Array.from(candidateSet)
+
+  for (let i = 0; i < candidates.length; i++) {
+    const x = candidates[i]
+    if (existsPool(tokenIn, x, pools) && existsPool(x, tokenOut, pools)) {
+      routes.push([tokenIn, x, tokenOut])
+    }
+  }
+
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const x = candidates[i]
+
+      const y = candidates[j]
+
+      if (existsPool(tokenIn, x, pools) && existsPool(x, y, pools) && existsPool(y, tokenOut, pools)) {
+        routes.push([tokenIn, x, y, tokenOut])
+      }
+
+      if (existsPool(tokenIn, y, pools) && existsPool(y, x, pools) && existsPool(x, tokenOut, pools)) {
+        routes.push([tokenIn, y, x, tokenOut])
+      }
+    }
+  }
+
+  let bestRoute: string[] = []
+  let bestOutput = direction === TradeDirection.ExactInput ? 0n : BigInt(Number.MAX_SAFE_INTEGER)
+
+  for (const route of routes) {
+    let result: bigint
+    let valid = true
+
+    if (direction === TradeDirection.ExactInput) {
+      result = amount
+
+      for (let i = 0; i < route.length - 1; i++) {
+        const tokenA = route[i]
+
+        const tokenB = route[i + 1]
+
+        const pool = getPool(tokenA, tokenB, pools)
+        if (!pool) {
+          valid = false
+          break
+        }
+
+        const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
+
+        result = getAmountOut(result, reserveIn, reserveOut)
+      }
+
+      if (valid && result > bestOutput) {
+        bestOutput = result
+
+        bestRoute = route
+      }
+    } else {
+      result = amount
+
+      for (let i = route.length - 1; i > 0; i--) {
+        const tokenA = route[i - 1]
+
+        const tokenB = route[i]
+
+        const pool = getPool(tokenA, tokenB, pools)
+        if (!pool) {
+          valid = false
+          break
+        }
+
+        const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
+
+        result = getAmountIn(result, reserveIn, reserveOut)
+      }
+
+      if (valid && result < bestOutput) {
+        bestOutput = result
+
+        bestRoute = route
+      }
+    }
+  }
+
+  const priceImpact = 0
+
+  return { route: bestRoute, output: bestOutput, priceImpact }
+}
