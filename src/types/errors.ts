@@ -7,3 +7,5 @@ export const ERROR_ADDRESS = (token: 'fromToken' | 'toToken') => `The "${token}"
 export const ERROR_TOKENS_EQUAL = 'The "fromToken" and "toToken" parameters cannot be the same.'
 
 export const ERROR_NON_VALID_TOKEN = (token: 'fromToken' | 'toToken') => `The "${token}" is not a valid token address.`
+
+export const ERROR_ZERO_AMOUNT = 'Unable to obtain a quote for a zero input amount.'

@@ -27,8 +27,34 @@ function getReservesForSwap(tokenA: string, pool: IPairData): { reserveIn: bigin
   if (tokenA.toLowerCase() === pool.token0.id.toLowerCase()) {
     return { reserveIn: BigInt(pool.reserve0), reserveOut: BigInt(pool.reserve1) }
   }
-
   return { reserveIn: BigInt(pool.reserve1), reserveOut: BigInt(pool.reserve0) }
+}
+
+function calculateIdealTrade(amount: bigint, route: string[], pools: IPairData[], direction: TradeDirection): bigint {
+  let ideal: bigint = amount
+  if (route.length === 0) return ideal
+
+  if (direction === TradeDirection.ExactInput) {
+    for (let i = 0; i < route.length - 1; i++) {
+      const pool = getPool(route[i], route[i + 1], pools)
+      if (!pool) continue
+
+      const { reserveIn, reserveOut } = getReservesForSwap(route[i], pool)
+
+      ideal = (ideal * reserveOut) / reserveIn
+    }
+  } else {
+    for (let i = route.length - 1; i > 0; i--) {
+      const pool = getPool(route[i - 1], route[i], pools)
+      if (!pool) continue
+
+      const { reserveIn, reserveOut } = getReservesForSwap(route[i - 1], pool)
+
+      ideal = (ideal * reserveIn) / reserveOut
+    }
+  }
+
+  return ideal
 }
 
 async function findBestRoute(
@@ -53,7 +79,6 @@ async function findBestRoute(
   }
   candidateSet.delete(tokenIn)
   candidateSet.delete(tokenOut)
-
   const candidates = Array.from(candidateSet)
 
   for (let i = 0; i < candidates.length; i++) {
@@ -66,13 +91,10 @@ async function findBestRoute(
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
       const x = candidates[i]
-
       const y = candidates[j]
-
       if (existsPool(tokenIn, x, pools) && existsPool(x, y, pools) && existsPool(y, tokenOut, pools)) {
         routes.push([tokenIn, x, y, tokenOut])
       }
-
       if (existsPool(tokenIn, y, pools) && existsPool(y, x, pools) && existsPool(x, tokenOut, pools)) {
         routes.push([tokenIn, y, x, tokenOut])
       }
@@ -88,56 +110,56 @@ async function findBestRoute(
 
     if (direction === TradeDirection.ExactInput) {
       result = amount
-
       for (let i = 0; i < route.length - 1; i++) {
         const tokenA = route[i]
-
         const tokenB = route[i + 1]
-
         const pool = getPool(tokenA, tokenB, pools)
         if (!pool) {
           valid = false
           break
         }
-
         const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
-
         result = getAmountOut(result, reserveIn, reserveOut)
       }
-
       if (valid && result > bestOutput) {
         bestOutput = result
-
         bestRoute = route
       }
     } else {
       result = amount
-
       for (let i = route.length - 1; i > 0; i--) {
         const tokenA = route[i - 1]
-
         const tokenB = route[i]
-
         const pool = getPool(tokenA, tokenB, pools)
         if (!pool) {
           valid = false
           break
         }
-
         const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
-
         result = getAmountIn(result, reserveIn, reserveOut)
       }
-
       if (valid && result < bestOutput) {
         bestOutput = result
-
         bestRoute = route
       }
     }
   }
 
-  const priceImpact = 0
+  let priceImpact = 0
+
+  if (bestRoute.length > 0) {
+    const ideal = calculateIdealTrade(amount, bestRoute, pools, direction)
+
+    if (ideal > 0n) {
+      if (direction === TradeDirection.ExactInput) {
+        priceImpact = Number(ideal - bestOutput) / Number(ideal)
+      } else {
+        priceImpact = Number(bestOutput - ideal) / Number(ideal)
+      }
+    }
+  }
 
   return { route: bestRoute, output: bestOutput, priceImpact }
 }
+
+export { findBestRoute }
