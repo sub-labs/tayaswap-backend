@@ -12,7 +12,7 @@ import {
 } from '@/types'
 import { findBestRoute } from '@/utils'
 import { OpenAPIRoute } from 'chanfana'
-import { isAddress, parseUnits } from 'viem'
+import { formatUnits, isAddress, parseUnits } from 'viem'
 import { z } from 'zod'
 
 export class GetQuote extends OpenAPIRoute {
@@ -127,13 +127,24 @@ export class GetQuote extends OpenAPIRoute {
 
     const direction = fromAmount ? TradeDirection.ExactInput : TradeDirection.ExactOutput
 
-    const { route, output, priceImpact } = await findBestRoute(amount, tokenIn.id, tokenOut.id, pools, direction)
+    const { route, output, priceImpact, suggestedSlippage } = await findBestRoute(
+      amount,
+      tokenIn.id,
+      tokenOut.id,
+      pools,
+      direction
+    )
+
+    const quote = fromAmount
+      ? formatUnits(output, Number(tokenIn.decimals))
+      : formatUnits(output, Number(tokenOut.decimals))
 
     return context.json({
       success: true,
       route,
-      quote: output,
-      priceImpact
+      quote,
+      priceImpact,
+      suggestedSlippage
     })
   }
 }

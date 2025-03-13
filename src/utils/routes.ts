@@ -1,5 +1,6 @@
 import type { IPairData } from '@/services'
 import { TradeDirection } from '@/types'
+import { parseUnits } from 'viem'
 import { getAmountIn, getAmountOut } from './uniswapv2'
 
 function existsPool(tokenA: string, tokenB: string, pools: IPairData[]): boolean {
@@ -25,9 +26,9 @@ function getPool(tokenA: string, tokenB: string, pools: IPairData[]): IPairData 
 
 function getReservesForSwap(tokenA: string, pool: IPairData): { reserveIn: bigint; reserveOut: bigint } {
   if (tokenA.toLowerCase() === pool.token0.id.toLowerCase()) {
-    return { reserveIn: BigInt(pool.reserve0), reserveOut: BigInt(pool.reserve1) }
+    return { reserveIn: parseUnits(pool.reserve0, 18), reserveOut: parseUnits(pool.reserve1, 18) }
   }
-  return { reserveIn: BigInt(pool.reserve1), reserveOut: BigInt(pool.reserve0) }
+  return { reserveIn: parseUnits(pool.reserve1, 18), reserveOut: parseUnits(pool.reserve0, 18) }
 }
 
 function calculateIdealTrade(amount: bigint, route: string[], pools: IPairData[], direction: TradeDirection): bigint {
@@ -63,8 +64,8 @@ async function findBestRoute(
   tokenOut: string,
   pools: IPairData[],
   direction: TradeDirection
-): Promise<{ route: string[]; output: bigint; priceImpact: number }> {
-  if (amount === 0n) return { route: [], output: 0n, priceImpact: 0 }
+): Promise<{ route: string[]; output: bigint; priceImpact: number; suggestedSlippage: number }> {
+  if (amount === 0n) return { route: [], output: 0n, priceImpact: 0, suggestedSlippage: 0 }
 
   const routes: string[][] = []
 
@@ -119,6 +120,7 @@ async function findBestRoute(
           break
         }
         const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
+
         result = getAmountOut(result, reserveIn, reserveOut)
       }
       if (valid && result > bestOutput) {
@@ -136,6 +138,7 @@ async function findBestRoute(
           break
         }
         const { reserveIn, reserveOut } = getReservesForSwap(tokenA, pool)
+
         result = getAmountIn(result, reserveIn, reserveOut)
       }
       if (valid && result < bestOutput) {
@@ -149,7 +152,6 @@ async function findBestRoute(
 
   if (bestRoute.length > 0) {
     const ideal = calculateIdealTrade(amount, bestRoute, pools, direction)
-
     if (ideal > 0n) {
       if (direction === TradeDirection.ExactInput) {
         priceImpact = Number(ideal - bestOutput) / Number(ideal)
@@ -158,8 +160,22 @@ async function findBestRoute(
       }
     }
   }
+  const buffer = 0.005
 
-  return { route: bestRoute, output: bestOutput, priceImpact }
+  const suggestedSlippageFraction = priceImpact + buffer
+
+  const suggestedSlippageBP = Math.floor(suggestedSlippageFraction * 10000)
+
+  let adjustedOutput = bestOutput
+  if (bestRoute.length > 0) {
+    if (direction === TradeDirection.ExactInput) {
+      adjustedOutput = (bestOutput * BigInt(10000 - suggestedSlippageBP)) / 10000n
+    } else {
+      adjustedOutput = (bestOutput * BigInt(10000 + suggestedSlippageBP)) / 10000n
+    }
+  }
+
+  return { route: bestRoute, output: bestOutput, priceImpact, suggestedSlippage: suggestedSlippageFraction }
 }
 
 export { findBestRoute }
