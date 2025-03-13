@@ -5,5 +5,11 @@
   "compatibility_date": "2025-01-29",
   "observability": {
     "enabled": true
-  }
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CACHE",
+      "id": "5788082d3fbf48598984b316352e13ca"
+    }
+  ]
 }
