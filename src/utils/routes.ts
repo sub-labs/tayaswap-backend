@@ -160,7 +160,7 @@ async function findBestRoute(
       }
     }
   }
-  const buffer = 0.005
+  const buffer = 0.001
 
   const suggestedSlippageFraction = priceImpact + buffer
 

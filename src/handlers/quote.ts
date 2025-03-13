@@ -49,11 +49,11 @@ export class GetQuote extends OpenAPIRoute {
           .array(z.string())
           .optional()
           .describe('Optimal trading path (token addresses) for the requested trade.'),
-        priceImpact: z.string().optional().describe('The percentage impact of the trade on the pool')
+        priceImpact: z.string().optional().describe('The percentage impact of the trade on the pool'),
+        suggestedSlippage: z.string().optional().describe('The suggested slippage to use.')
       }
     },
     description: 'Returns the quote and optimal trading path for exchanging a specified amount of tokens.',
-
     tags: ['Quote']
   }
 
@@ -91,7 +91,6 @@ export class GetQuote extends OpenAPIRoute {
       (acc, pair) => {
         const token0Key = pair.token0.id.toLowerCase()
         const token1Key = pair.token1.id.toLowerCase()
-
         if (!acc[token0Key]) {
           acc[token0Key] = pair.token0
         }
@@ -104,7 +103,6 @@ export class GetQuote extends OpenAPIRoute {
     )
 
     const tokenIn = tokens[fromToken]
-
     const tokenOut = tokens[toToken]
 
     if (!tokenIn) {
@@ -127,17 +125,19 @@ export class GetQuote extends OpenAPIRoute {
 
     const direction = fromAmount ? TradeDirection.ExactInput : TradeDirection.ExactOutput
 
-    const { route, output, priceImpact, suggestedSlippage } = await findBestRoute(
-      amount,
-      tokenIn.id,
-      tokenOut.id,
-      pools,
-      direction
-    )
+    const {
+      route,
+      output,
+      priceImpact: priceImpactNumber,
+      suggestedSlippage: suggestedSlippageNumber
+    } = await findBestRoute(amount, tokenIn.id, tokenOut.id, pools, direction)
 
     const quote = fromAmount
       ? formatUnits(output, Number(tokenIn.decimals))
       : formatUnits(output, Number(tokenOut.decimals))
+
+    const priceImpact = (priceImpactNumber * 100).toFixed(3)
+    const suggestedSlippage = (suggestedSlippageNumber * 100).toFixed(3)
 
     return context.json({
       success: true,
