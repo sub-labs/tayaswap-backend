@@ -6,15 +6,15 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "format": "biome format --max-diagnostics 100 --write ./",
-    "lint": "biome lint --write -unsafe --max-diagnostics 100 ./",
+    "lint": "biome lint --write --unsafe --max-diagnostics 100 ./",
     "start": "wrangler dev",
     "typegen": "wrangler types"
   },
   "dependencies": {
     "chanfana": "2.6.3",
-    "graphql-request": "^7.1.2",
+    "graphql-request": "7.1.2",
     "hono": "4.7.4",
-    "viem": "^2.23.10",
+    "viem": "2.23.10",
     "zod": "3.24.2"
   },
   "devDependencies": {
